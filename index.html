@@ -134,7 +134,28 @@
   .rbtn.dl{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 14px rgba(139,92,246,.3)}
   .rbtn.clear{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
   .rbtn:disabled{opacity:.35;cursor:default;transform:none!important}
+
+  /* Modal */
+  .modal-box{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999;display:flex;align-items:flex-end;justify-content:center}
+  .modal-backdrop{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);backdrop-filter:blur(6px)}
+  .modal-dialog{position:relative;background:#111726;border:1px solid rgba(255,255,255,.12);border-radius:24px 24px 0 0;width:100%;max-width:500px;padding:22px;z-index:1000;box-shadow:0 -10px 40px rgba(0,0,0,.6);max-height:85vh;overflow-y:auto}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .modal-close-btn{background:rgba(255,255,255,.1);border:none;color:#fff;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:700;font-size:14px}
+  
+  .modal-action-btn{
+    width:100%;padding:14px 16px;border-radius:14px;border:none;margin-bottom:10px;
+    display:flex;align-items:center;gap:12px;cursor:pointer;color:#fff;text-align:left;transition:.15s;
+  }
+  .modal-action-btn:active{transform:scale(.98)}
+  .modal-action-btn.share{background:linear-gradient(135deg,#3b82f6,#2563eb);box-shadow:0 4px 14px rgba(37,99,235,.3)}
+  .modal-action-btn.copy{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 14px rgba(16,185,129,.3)}
+  .modal-action-btn.dl{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 14px rgba(139,92,246,.3)}
+  .m-icon{font-size:22px}
+  .m-title{font-size:14px;font-weight:800}
+  .m-sub{font-size:11px;opacity:.8;margin-top:2px}
+  #csvPreviewArea{width:100%;height:85px;background:rgba(0,0,0,.45);color:#94a3b8;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;font-family:monospace;font-size:10px;resize:none;line-height:1.4}
 </style>
+
 </head>
 <body>
 
@@ -198,12 +219,57 @@
   <div class="rec-btns">
     <button class="rbtn start" id="bStart" onclick="startRec()">▶ Bắt đầu ghi</button>
     <button class="rbtn stop" id="bStop" onclick="stopRec()" disabled>⏸ Dừng</button>
-    <button class="rbtn dl" id="bDl" onclick="dlCSV()" disabled>💾 Tải CSV</button>
-    <button class="rbtn copy" id="bCopy" onclick="copyCSV()" disabled style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)">📋 Sao chép</button>
+    <button class="rbtn dl" id="bDl" onclick="openExportModal()" disabled>💾 Tải / Xuất CSV</button>
     <button class="rbtn clear" onclick="clearRec()">🗑 Xoá</button>
   </div>
-
 </div>
+
+<!-- Export Modal for iOS & Android -->
+<div id="exportModal" class="modal-box" style="display:none">
+  <div class="modal-backdrop" onclick="closeExportModal()"></div>
+  <div class="modal-dialog">
+    <div class="modal-head">
+      <div style="font-weight:800;font-size:16px">💾 Xuất Dữ Liệu (<span id="modalSamples">0</span> mẫu)</div>
+      <button class="modal-close-btn" onclick="closeExportModal()">✕</button>
+    </div>
+    <div class="modal-content-inner">
+      <p style="font-size:12px;color:var(--sub);margin-bottom:12px">Chọn cách lưu dữ liệu thuận tiện nhất cho bạn:</p>
+
+      <button class="modal-action-btn share" onclick="actionShare()">
+        <span class="m-icon">📤</span>
+        <div class="m-text">
+          <div class="m-title">Chia sẻ / Lưu vào Tệp</div>
+          <div class="m-sub">Mở menu iOS/Android để gửi qua Zalo, Drive, Tệp</div>
+        </div>
+      </button>
+
+      <button class="modal-action-btn copy" onclick="actionCopy()">
+        <span class="m-icon">📋</span>
+        <div class="m-text">
+          <div class="m-title" id="copyBtnTitle">Sao chép toàn bộ CSV</div>
+          <div class="m-sub">Copy 1 chạm để dán (Paste) vào Google Sheets, Zalo</div>
+        </div>
+      </button>
+
+      <button class="modal-action-btn dl" onclick="actionDirectDownload()">
+        <span class="m-icon">📥</span>
+        <div class="m-text">
+          <div class="m-title">Tải file .csv về máy</div>
+          <div class="m-sub">Tự động tải về thư mục Downloads</div>
+        </div>
+      </button>
+
+      <div style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:700;color:var(--dim)">Dữ liệu văn bản (CSV):</span>
+          <span style="font-size:11px;color:var(--blue);cursor:pointer" onclick="selectPreviewText()">Bôi đen tất cả</span>
+        </div>
+        <textarea id="csvPreviewArea" readonly></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 const SVC="19b10000-e8f2-537e-4f6c-d104768a1214";
@@ -392,34 +458,87 @@ function stopRec(){
   }
 }
 
-async function dlCSV(){
+function openExportModal(){
   if (!csv.length) {
-    alert("Chưa có dữ liệu để tải!");
+    alert("Chưa có dữ liệu để xuất!");
     return;
   }
-  
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  $('modalSamples').textContent = csv.length;
+  $('csvPreviewArea').value = csvContent;
+  $('exportModal').style.display = 'flex';
+}
+
+function closeExportModal(){
+  $('exportModal').style.display = 'none';
+}
+
+async function actionShare(){
+  if (!csv.length) return;
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
   const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
-  
-  // 1. Thử dùng Web Share API (Chuẩn tốt nhất cho iPhone / Android)
-  if (navigator.share) {
-    try {
-      const file = new File([csvContent], filename, { type: 'text/csv' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: 'Dữ liệu IMU Tracker',
-          text: `Dữ liệu ${csv.length} mẫu cảm biến IMU`,
-          files: [file]
-        });
-        return;
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      console.warn('Share file fallback...', err);
+
+  try {
+    const file = new File([csvContent], filename, { type: 'text/csv' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'IMU Data',
+        text: `Dữ liệu cảm biến IMU (${csv.length} mẫu)`,
+        files: [file]
+      });
+      return;
     }
+  } catch (err) {
+    if (err.name === 'AbortError') return;
   }
 
-  // 2. Fallback dùng thẻ <a> download qua Blob URL
+  // Nếu share file không được thì thử share dạng text
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Dữ liệu IMU Tracker',
+        text: csvContent
+      });
+      return;
+    } catch(e) {}
+  }
+
+  // Fallback: Copy
+  actionCopy();
+}
+
+function actionCopy(){
+  if (!csv.length) return;
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(csvContent).then(() => {
+      $('copyBtnTitle').textContent = '✅ Đã Copy thành công!';
+      setTimeout(() => { $('copyBtnTitle').textContent = 'Sao chép toàn bộ CSV'; }, 2500);
+      alert(`✅ Đã copy ${csv.length} dòng dữ liệu! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
+    }).catch(() => fallbackManualCopy(csvContent));
+  } else {
+    fallbackManualCopy(csvContent);
+  }
+}
+
+function fallbackManualCopy(text){
+  const ta = $('csvPreviewArea');
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    alert(`✅ Đã copy ${csv.length} dòng dữ liệu!`);
+  } catch (e) {
+    alert("Vui lòng bôi đen dữ liệu trong khung bên dưới và bấm Sao chép.");
+  }
+}
+
+function actionDirectDownload(){
+  if (!csv.length) return;
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
+
   try {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -431,25 +550,18 @@ async function dlCSV(){
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }, 1000);
+    }, 1500);
   } catch (e) {
-    // 3. Fallback Data URI
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     window.open(dataUri, '_blank');
   }
 }
 
-function copyCSV(){
-  if (!csv.length) {
-    alert("Chưa có dữ liệu!");
-    return;
-  }
-  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
-  navigator.clipboard.writeText(csvContent).then(() => {
-    alert(`✅ Đã sao chép ${csv.length} dòng dữ liệu vào bộ nhớ đệm! Bạn có thể dán (Paste) vào Zalo, Ghi chú hoặc Google Sheets.`);
-  }).catch(() => {
-    prompt("Sao chép dữ liệu bên dưới:", csvContent.slice(0, 500) + '...');
-  });
+function selectPreviewText(){
+  const ta = $('csvPreviewArea');
+  ta.focus();
+  ta.select();
+  ta.setSelectionRange(0, 999999);
 }
 
 function clearRec(){
@@ -463,11 +575,12 @@ function clearRec(){
   $('bStart').textContent = '▶ Bắt đầu ghi';
   $('bStop').disabled = true;
   $('bDl').disabled = true;
-  if ($('bCopy')) $('bCopy').disabled = true;
   $('rCnt').textContent = '0';
   $('rTime').textContent = '00:00';
   $('rHz').textContent = '0';
+  closeExportModal();
 }
+
 
 
 render();
