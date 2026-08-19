@@ -513,12 +513,27 @@ function stopRec(){
   }
 }
 
-const actCounters = {};
-
 function getFilename(){
-  const count = actCounters[curActivityKey] || 1;
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mmdd = `${mm}${dd}`;
+
+  const storageKey = `actCount_${curActivityKey}_${mmdd}`;
+  let count = parseInt(localStorage.getItem(storageKey) || '1', 10);
   const countStr = String(count).padStart(2, '0');
-  return `${curActivityKey}_${countStr}.csv`;
+  return `${curActivityKey}_${mmdd}_${countStr}.csv`;
+}
+
+function incrementCounter(){
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mmdd = `${mm}${dd}`;
+
+  const storageKey = `actCount_${curActivityKey}_${mmdd}`;
+  let count = parseInt(localStorage.getItem(storageKey) || '1', 10);
+  localStorage.setItem(storageKey, String(count + 1));
 }
 
 function openExportModal(){
@@ -550,7 +565,7 @@ async function actionShare(){
         text: `Dữ liệu ${filename} (${csv.length} mẫu)`,
         files: [file]
       });
-      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
+      incrementCounter();
       return;
     }
   } catch (err) {
@@ -564,7 +579,7 @@ async function actionShare(){
         title: filename,
         text: csvContent
       });
-      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
+      incrementCounter();
       return;
     } catch(e) {}
   }
@@ -583,7 +598,7 @@ function actionCopy(){
       $('copyBtnTitle').textContent = '✅ Đã Copy thành công!';
       setTimeout(() => { $('copyBtnTitle').textContent = 'Sao chép toàn bộ CSV'; }, 2500);
       alert(`✅ Đã copy ${csv.length} dòng dữ liệu (${filename})! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
-      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
+      incrementCounter();
     }).catch(() => fallbackManualCopy(csvContent));
   } else {
     fallbackManualCopy(csvContent);
@@ -619,12 +634,13 @@ function actionDirectDownload(){
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1500);
-    actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
+    incrementCounter();
   } catch (e) {
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     window.open(dataUri, '_blank');
   }
 }
+
 
 
 function selectPreviewText(){
