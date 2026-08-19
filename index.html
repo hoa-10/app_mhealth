@@ -513,13 +513,22 @@ function stopRec(){
   }
 }
 
+const actCounters = {};
+
+function getFilename(){
+  const count = actCounters[curActivityKey] || 1;
+  const countStr = String(count).padStart(2, '0');
+  return `${curActivityKey}_${countStr}.csv`;
+}
+
 function openExportModal(){
   if (!csv.length) {
     alert("Chưa có dữ liệu để xuất!");
     return;
   }
+  const filename = getFilename();
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
-  $('modalSamples').textContent = `${csv.length} [${curActivityName}]`;
+  $('modalSamples').textContent = `${csv.length} mẫu • ${filename}`;
   $('csvPreviewArea').value = csvContent;
   $('exportModal').style.display = 'flex';
 }
@@ -530,17 +539,18 @@ function closeExportModal(){
 
 async function actionShare(){
   if (!csv.length) return;
+  const filename = getFilename();
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
-  const filename = `${curActivityKey}_${new Date().toISOString().slice(0,19).replace(/[-:]/g,'_')}.csv`;
 
   try {
     const file = new File([csvContent], filename, { type: 'text/csv' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: `IMU ${curActivityName}`,
-        text: `Dữ liệu hoạt động ${curActivityName} (${csv.length} mẫu)`,
+        title: filename,
+        text: `Dữ liệu ${filename} (${csv.length} mẫu)`,
         files: [file]
       });
+      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
       return;
     }
   } catch (err) {
@@ -551,9 +561,10 @@ async function actionShare(){
   if (navigator.share) {
     try {
       await navigator.share({
-        title: `Dữ liệu IMU ${curActivityName}`,
+        title: filename,
         text: csvContent
       });
+      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
       return;
     } catch(e) {}
   }
@@ -564,13 +575,15 @@ async function actionShare(){
 
 function actionCopy(){
   if (!csv.length) return;
+  const filename = getFilename();
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
   
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(csvContent).then(() => {
       $('copyBtnTitle').textContent = '✅ Đã Copy thành công!';
       setTimeout(() => { $('copyBtnTitle').textContent = 'Sao chép toàn bộ CSV'; }, 2500);
-      alert(`✅ Đã copy ${csv.length} dòng dữ liệu [${curActivityName}]! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
+      alert(`✅ Đã copy ${csv.length} dòng dữ liệu (${filename})! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
+      actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
     }).catch(() => fallbackManualCopy(csvContent));
   } else {
     fallbackManualCopy(csvContent);
@@ -583,7 +596,7 @@ function fallbackManualCopy(text){
   ta.select();
   try {
     document.execCommand('copy');
-    alert(`✅ Đã copy ${csv.length} dòng dữ liệu [${curActivityName}]!`);
+    alert(`✅ Đã copy dữ liệu!`);
   } catch (e) {
     alert("Vui lòng bôi đen dữ liệu trong khung bên dưới và bấm Sao chép.");
   }
@@ -591,8 +604,8 @@ function fallbackManualCopy(text){
 
 function actionDirectDownload(){
   if (!csv.length) return;
+  const filename = getFilename();
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
-  const filename = `${curActivityKey}_${new Date().toISOString().slice(0,19).replace(/[-:]/g,'_')}.csv`;
 
   try {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -606,11 +619,13 @@ function actionDirectDownload(){
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 1500);
+    actCounters[curActivityKey] = (actCounters[curActivityKey] || 1) + 1;
   } catch (e) {
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     window.open(dataUri, '_blank');
   }
 }
+
 
 function selectPreviewText(){
   const ta = $('csvPreviewArea');
