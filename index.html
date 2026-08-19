@@ -199,8 +199,10 @@
     <button class="rbtn start" id="bStart" onclick="startRec()">▶ Bắt đầu ghi</button>
     <button class="rbtn stop" id="bStop" onclick="stopRec()" disabled>⏸ Dừng</button>
     <button class="rbtn dl" id="bDl" onclick="dlCSV()" disabled>💾 Tải CSV</button>
+    <button class="rbtn copy" id="bCopy" onclick="copyCSV()" disabled style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)">📋 Sao chép</button>
     <button class="rbtn clear" onclick="clearRec()">🗑 Xoá</button>
   </div>
+
 </div>
 
 <script>
@@ -360,38 +362,61 @@ function draw(ctx,cv,h,s,c){
 
 // Record Controls
 function startRec(){
-  rec=true;csv=[];rCnt=0;recStart=performance.now();
-  $('recCard').classList.add('active');$('rdot').classList.add('on');
-  $('recStatus').textContent='Đang ghi...';
-  $('bStart').disabled=true;$('bStop').disabled=false;$('bDl').disabled=true;
-  $('rCnt').textContent='0';$('rTime').textContent='00:00';$('rHz').textContent='0';
+  rec = true;
+  csv = [];
+  rCnt = 0;
+  recStart = performance.now();
+  $('recCard').classList.add('active');
+  $('rdot').classList.add('on');
+  $('recStatus').textContent = 'Đang ghi...';
+  $('bStart').disabled = true;
+  $('bStop').disabled = false;
+  $('bDl').disabled = true;
+  if ($('bCopy')) $('bCopy').disabled = true;
+  $('rCnt').textContent = '0';
+  $('rTime').textContent = '00:00';
+  $('rHz').textContent = '0';
 }
+
 function stopRec(){
-  rec=false;
-  $('recCard').classList.remove('active');$('rdot').classList.remove('on');
-  $('recStatus').textContent=`Đã thu ${rCnt} mẫu`;
-  $('bStart').disabled=false;$('bStart').textContent='▶ Ghi tiếp';
-  $('bStop').disabled=true;
+  rec = false;
+  $('recCard').classList.remove('active');
+  $('rdot').classList.remove('on');
+  $('recStatus').textContent = `Đã thu ${rCnt} mẫu`;
+  $('bStart').disabled = false;
+  $('bStart').textContent = '▶ Ghi tiếp';
+  $('bStop').disabled = true;
+  if (csv.length > 0) {
+    $('bDl').disabled = false;
+    if ($('bCopy')) $('bCopy').disabled = false;
+  }
+}
+
 async function dlCSV(){
-  if(!csv.length){ alert("Chưa có dữ liệu để tải!"); return; }
+  if (!csv.length) {
+    alert("Chưa có dữ liệu để tải!");
+    return;
+  }
   
   const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
   const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
   
-  // 1. Thử dùng Web Share API (Chuẩn tốt nhất cho iPhone / Android - Mở bảng Chia sẻ / Lưu vào Tệp)
-  try {
-    const file = new File([csvContent], filename, { type: 'text/csv' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: 'Dữ liệu IMU Tracker',
-        text: `Dữ liệu ${csv.length} mẫu cảm biến IMU`,
-        files: [file]
-      });
-      return;
+  // 1. Thử dùng Web Share API (Chuẩn tốt nhất cho iPhone / Android)
+  if (navigator.share) {
+    try {
+      const file = new File([csvContent], filename, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'Dữ liệu IMU Tracker',
+          text: `Dữ liệu ${csv.length} mẫu cảm biến IMU`,
+          files: [file]
+        });
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.warn('Share file fallback...', err);
     }
-  } catch (err) {
-    if (err.name !== 'AbortError') console.warn('Share API error:', err);
-    else return; // Người dùng tự hủy bảng share
   }
 
   // 2. Fallback dùng thẻ <a> download qua Blob URL
@@ -408,19 +433,42 @@ async function dlCSV(){
       URL.revokeObjectURL(url);
     }, 1000);
   } catch (e) {
-    // 3. Fallback cuối cùng: Mở tab mới hoặc Copy
+    // 3. Fallback Data URI
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     window.open(dataUri, '_blank');
   }
 }
 
-  rec=false;csv=[];rCnt=0;
-  $('recCard').classList.remove('active');$('rdot').classList.remove('on');
-  $('recStatus').textContent='Sẵn sàng';
-  $('bStart').disabled=false;$('bStart').textContent='▶ Bắt đầu ghi';
-  $('bStop').disabled=true;$('bDl').disabled=true;
-  $('rCnt').textContent='0';$('rTime').textContent='00:00';$('rHz').textContent='0';
+function copyCSV(){
+  if (!csv.length) {
+    alert("Chưa có dữ liệu!");
+    return;
+  }
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  navigator.clipboard.writeText(csvContent).then(() => {
+    alert(`✅ Đã sao chép ${csv.length} dòng dữ liệu vào bộ nhớ đệm! Bạn có thể dán (Paste) vào Zalo, Ghi chú hoặc Google Sheets.`);
+  }).catch(() => {
+    prompt("Sao chép dữ liệu bên dưới:", csvContent.slice(0, 500) + '...');
+  });
 }
+
+function clearRec(){
+  rec = false;
+  csv = [];
+  rCnt = 0;
+  $('recCard').classList.remove('active');
+  $('rdot').classList.remove('on');
+  $('recStatus').textContent = 'Sẵn sàng';
+  $('bStart').disabled = false;
+  $('bStart').textContent = '▶ Bắt đầu ghi';
+  $('bStop').disabled = true;
+  $('bDl').disabled = true;
+  if ($('bCopy')) $('bCopy').disabled = true;
+  $('rCnt').textContent = '0';
+  $('rTime').textContent = '00:00';
+  $('rHz').textContent = '0';
+}
+
 
 render();
 </script>
