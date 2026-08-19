@@ -233,10 +233,26 @@ async function go(){
     $('bleName').textContent='Đang quét...';
     $('bleSub').textContent='Chọn thiết bị trong hộp thoại';
 
-    dev=await navigator.bluetooth.requestDevice({
-      filters:[{services:[SVC]}],
-      optionalServices:[SVC]
-    });
+    try {
+      dev = await navigator.bluetooth.requestDevice({
+        filters: [
+          { services: [SVC] },
+          { namePrefix: 'Nano' },
+          { namePrefix: 'Arduino' }
+        ],
+        optionalServices: [SVC]
+      });
+    } catch (filterErr) {
+      if (filterErr.name === 'NotFoundError') {
+        // Thử chế độ quét toàn bộ thiết bị nếu filter bị lỡ
+        dev = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [SVC]
+        });
+      } else {
+        throw filterErr;
+      }
+    }
     dev.addEventListener('gattserverdisconnected',onDC);
     await doConnect();
   }catch(e){
@@ -245,6 +261,7 @@ async function go(){
     $('bleSub').textContent=e.message;
   }
 }
+
 
 async function doConnect(retries=3){
   for(let i=1;i<=retries;i++){
