@@ -355,15 +355,48 @@ function stopRec(){
   $('recStatus').textContent=`Đã thu ${rCnt} mẫu`;
   $('bStart').disabled=false;$('bStart').textContent='▶ Ghi tiếp';
   $('bStop').disabled=true;
-  if(csv.length)$('bDl').disabled=false;
+async function dlCSV(){
+  if(!csv.length){ alert("Chưa có dữ liệu để tải!"); return; }
+  
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
+  
+  // 1. Thử dùng Web Share API (Chuẩn tốt nhất cho iPhone / Android - Mở bảng Chia sẻ / Lưu vào Tệp)
+  try {
+    const file = new File([csvContent], filename, { type: 'text/csv' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: 'Dữ liệu IMU Tracker',
+        text: `Dữ liệu ${csv.length} mẫu cảm biến IMU`,
+        files: [file]
+      });
+      return;
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') console.warn('Share API error:', err);
+    else return; // Người dùng tự hủy bảng share
+  }
+
+  // 2. Fallback dùng thẻ <a> download qua Blob URL
+  try {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  } catch (e) {
+    // 3. Fallback cuối cùng: Mở tab mới hoặc Copy
+    const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    window.open(dataUri, '_blank');
+  }
 }
-function dlCSV(){
-  if(!csv.length)return;
-  const blob=new Blob(['timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n'+csv.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='imu_'+new Date().toISOString().slice(0,19).replace(/:/g,'')+'.csv';a.click();
-}
-function clearRec(){
+
   rec=false;csv=[];rCnt=0;
   $('recCard').classList.remove('active');$('rdot').classList.remove('on');
   $('recStatus').textContent='Sẵn sàng';
