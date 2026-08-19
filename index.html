@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0e17">
+<title>IMU Tracker</title>
+<style>
+  :root {
+    --bg:#0a0e17; --card:rgba(17,22,35,.92); --border:rgba(255,255,255,.06);
+    --t:#f1f5f9; --dim:#64748b; --sub:#94a3b8;
+    --blue:#3b82f6; --green:#22c55e; --red:#ef4444; --amber:#f59e0b; --purple:#a78bfa;
+    --ax:#38bdf8; --ay:#34d399; --az:#fb7185;
+    --gx:#fb923c; --gy:#a78bfa; --gz:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    background:var(--bg);color:var(--t);
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;
+    min-height:100vh;min-height:100dvh;
+    padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    overflow-x:hidden;
+  }
+
+  /* Top Bar */
+  .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:14px 0;
+  }
+  .topbar h1{font-size:18px;font-weight:800;letter-spacing:-.3px}
+  .pill{
+    font-size:12px;font-weight:700;font-family:monospace;
+    padding:4px 10px;border-radius:14px;
+    background:rgba(34,197,94,.12);color:var(--green);
+    border:1px solid rgba(34,197,94,.25);
+  }
+
+  /* Connect Card */
+  .connect-card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:20px;margin-bottom:16px;
+    text-align:center;
+  }
+  .ble-icon{
+    width:64px;height:64px;margin:0 auto 12px;
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:28px;
+    background:rgba(59,130,246,.12);border:2px solid rgba(59,130,246,.3);
+    transition:.3s;
+  }
+  .ble-icon.on{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.4)}
+  .ble-icon.wait{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);animation:pulse2 1.5s infinite}
+  @keyframes pulse2{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+  .connect-name{font-size:15px;font-weight:700;margin-bottom:4px}
+  .connect-sub{font-size:13px;color:var(--sub);margin-bottom:16px}
+
+  .btn-connect{
+    width:100%;padding:14px;border-radius:14px;border:none;
+    font-size:16px;font-weight:700;cursor:pointer;color:#fff;
+    transition:.2s;
+  }
+  .btn-connect.blue{background:linear-gradient(135deg,#3b82f6,#2563eb);box-shadow:0 4px 20px rgba(37,99,235,.35)}
+  .btn-connect.blue:active{transform:scale(.97)}
+  .btn-connect.red{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 20px rgba(239,68,68,.3)}
+
+  /* Live Data Tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{
+    flex:1;padding:8px;border-radius:10px;text-align:center;
+    font-size:12px;font-weight:700;cursor:pointer;
+    background:rgba(255,255,255,.04);border:1px solid var(--border);
+    color:var(--dim);transition:.2s;
+  }
+  .tab.active{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.3);color:var(--blue)}
+
+  /* Values Grid */
+  .vals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .val-card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:12px 8px;text-align:center;
+  }
+  .val-label{font-size:11px;font-weight:700;font-family:monospace;margin-bottom:4px}
+  .val-num{font-family:monospace;font-size:20px;font-weight:800}
+  .val-card.x .val-label{color:var(--ax)} .val-card.y .val-label{color:var(--ay)} .val-card.z .val-label{color:var(--az)}
+  .val-card.gx .val-label{color:var(--gx)} .val-card.gy .val-label{color:var(--gy)} .val-card.gz .val-label{color:var(--gz)}
+
+  /* Chart */
+  .chart-wrap{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:16px;padding:12px;margin-bottom:16px;
+  }
+  .chart-head{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:8px;font-size:12px;color:var(--sub);
+  }
+  canvas{width:100%;height:120px;display:block;border-radius:10px;background:rgba(4,6,14,.5)}
+
+  /* Record Panel */
+  .rec-card{
+    background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:20px;margin-bottom:16px;
+  }
+  .rec-card.active{border-color:rgba(239,68,68,.35);box-shadow:0 0 24px rgba(239,68,68,.08)}
+
+  .rec-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .rec-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .rdot{width:10px;height:10px;border-radius:50%;background:var(--dim);flex-shrink:0}
+  .rdot.on{background:var(--red);animation:blink 1s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  .rec-stats{display:flex;gap:8px;margin-bottom:16px}
+  .rstat{
+    flex:1;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.04);
+    border-radius:12px;padding:10px;text-align:center;
+  }
+  .rstat .rl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+  .rstat .rv{font-family:monospace;font-size:20px;font-weight:800;margin-top:2px}
+  .rstat:nth-child(1) .rv{color:var(--ax)}
+  .rstat:nth-child(2) .rv{color:var(--green)}
+  .rstat:nth-child(3) .rv{color:var(--amber)}
+
+  .rec-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .rbtn{
+    padding:14px;border-radius:14px;border:none;
+    font-size:14px;font-weight:700;cursor:pointer;color:#fff;
+    transition:.15s;
+  }
+  .rbtn:active{transform:scale(.96)}
+  .rbtn.start{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 4px 14px rgba(34,197,94,.3)}
+  .rbtn.stop{background:linear-gradient(135deg,#ef4444,#dc2626)}
+  .rbtn.dl{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 14px rgba(139,92,246,.3)}
+  .rbtn.clear{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+  .rbtn:disabled{opacity:.35;cursor:default;transform:none!important}
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <h1>⚡ IMU Tracker</h1>
+  <div class="pill" id="hzPill">0 Hz</div>
+</div>
+
+<!-- BLE Connect -->
+<div class="connect-card">
+  <div class="ble-icon" id="bleIcon">📡</div>
+  <div class="connect-name" id="bleName">Chưa kết nối thiết bị</div>
+  <div class="connect-sub" id="bleSub">Bấm nút để quét và kết nối Arduino Nano 33 BLE</div>
+  <button class="btn-connect blue" id="cBtn" onclick="go()">Kết nối Bluetooth</button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tabAcc" onclick="setTab('acc')">Gia Tốc</div>
+  <div class="tab" id="tabGyr" onclick="setTab('gyr')">Con Quay</div>
+</div>
+
+<!-- Accelerometer Values -->
+<div id="panelAcc">
+  <div class="vals">
+    <div class="val-card x"><div class="val-label">AX</div><div class="val-num" id="ax">0.00</div></div>
+    <div class="val-card y"><div class="val-label">AY</div><div class="val-num" id="ay">0.00</div></div>
+    <div class="val-card z"><div class="val-label">AZ</div><div class="val-num" id="az">0.00</div></div>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-head"><span>Accelerometer (g)</span><span>±2.0g</span></div>
+    <canvas id="cA" width="380" height="120"></canvas>
+  </div>
+</div>
+
+<!-- Gyroscope Values -->
+<div id="panelGyr" style="display:none">
+  <div class="vals">
+    <div class="val-card gx"><div class="val-label">GX</div><div class="val-num" id="gx">0.0</div></div>
+    <div class="val-card gy"><div class="val-label">GY</div><div class="val-num" id="gy">0.0</div></div>
+    <div class="val-card gz"><div class="val-label">GZ</div><div class="val-num" id="gz">0.0</div></div>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-head"><span>Gyroscope (°/s)</span><span>±250</span></div>
+    <canvas id="cG" width="380" height="120"></canvas>
+  </div>
+</div>
+
+<!-- Record Panel -->
+<div class="rec-card" id="recCard">
+  <div class="rec-top">
+    <div class="rec-title"><div class="rdot" id="rdot"></div> Thu dữ liệu</div>
+    <span style="font-size:12px;color:var(--dim)" id="recStatus">Sẵn sàng</span>
+  </div>
+  <div class="rec-stats">
+    <div class="rstat"><div class="rl">Mẫu</div><div class="rv" id="rCnt">0</div></div>
+    <div class="rstat"><div class="rl">Thời gian</div><div class="rv" id="rTime">00:00</div></div>
+    <div class="rstat"><div class="rl">Tốc độ</div><div class="rv" id="rHz">0</div></div>
+  </div>
+  <div class="rec-btns">
+    <button class="rbtn start" id="bStart" onclick="startRec()">▶ Bắt đầu ghi</button>
+    <button class="rbtn stop" id="bStop" onclick="stopRec()" disabled>⏸ Dừng</button>
+    <button class="rbtn dl" id="bDl" onclick="dlCSV()" disabled>💾 Tải CSV</button>
+    <button class="rbtn clear" onclick="clearRec()">🗑 Xoá</button>
+  </div>
+</div>
+
+<script>
+const SVC="19b10000-e8f2-537e-4f6c-d104768a1214";
+const CHR="19b10001-e8f2-537e-4f6c-d104768a1214";
+
+const $=id=>document.getElementById(id);
+const N=120;
+let dev=null,aH=[],gH=[],pc=0,lt=performance.now();
+let rec=false,csv=[],recStart=0,rCnt=0;
+let curTab='acc';
+
+// Tab switching
+function setTab(t){
+  curTab=t;
+  $('panelAcc').style.display=t==='acc'?'block':'none';
+  $('panelGyr').style.display=t==='gyr'?'block':'none';
+  $('tabAcc').className='tab'+(t==='acc'?' active':'');
+  $('tabGyr').className='tab'+(t==='gyr'?' active':'');
+}
+
+// BLE Connect with retry
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+async function go(){
+  if(dev&&dev.gatt.connected){dev.gatt.disconnect();return}
+  if(!navigator.bluetooth){alert("Dùng Google Chrome!");return}
+  try{
+    $('bleIcon').className='ble-icon wait';
+    $('bleName').textContent='Đang quét...';
+    $('bleSub').textContent='Chọn thiết bị trong hộp thoại';
+
+    dev=await navigator.bluetooth.requestDevice({
+      filters:[{services:[SVC]}],
+      optionalServices:[SVC]
+    });
+    dev.addEventListener('gattserverdisconnected',onDC);
+    await doConnect();
+  }catch(e){
+    $('bleIcon').className='ble-icon';
+    $('bleName').textContent='Chưa kết nối';
+    $('bleSub').textContent=e.message;
+  }
+}
+
+async function doConnect(retries=3){
+  for(let i=1;i<=retries;i++){
+    try{
+      $('bleIcon').className='ble-icon wait';
+      $('bleName').textContent=`Kết nối ${dev.name}... (${i}/${retries})`;
+      $('bleSub').textContent='Đang bắt tay GATT...';
+
+      const srv=await dev.gatt.connect();
+      await sleep(800);
+      const svc=await srv.getPrimaryService(SVC);
+      await sleep(300);
+      const ch=await svc.getCharacteristic(CHR);
+      await ch.startNotifications();
+      ch.addEventListener('characteristicvaluechanged',onData);
+
+      $('bleIcon').className='ble-icon on';
+      $('bleIcon').textContent='📶';
+      $('bleName').textContent=dev.name;
+      $('bleSub').textContent='Đang stream dữ liệu 6 trục realtime';
+      $('cBtn').textContent='Ngắt kết nối';
+      $('cBtn').className='btn-connect red';
+      return;
+    }catch(e){
+      if(dev.gatt.connected) dev.gatt.disconnect();
+      if(i<retries) await sleep(2000);
+      else {
+        $('bleIcon').className='ble-icon';
+        $('bleName').textContent='Kết nối thất bại';
+        $('bleSub').textContent=e.message+' — Bấm thử lại';
+      }
+    }
+  }
+}
+
+function onDC(){
+  $('bleIcon').className='ble-icon';$('bleIcon').textContent='📡';
+  $('bleName').textContent='Đã ngắt kết nối';
+  $('bleSub').textContent='Bấm nút để kết nối lại';
+  $('cBtn').textContent='Kết nối Bluetooth';$('cBtn').className='btn-connect blue';
+  $('hzPill').textContent='0 Hz';
+  if(dev){
+    setTimeout(()=>{if(dev&&!dev.gatt.connected) doConnect(2)},2000);
+  }
+}
+
+function onData(e){
+  const d=e.target.value;if(d.byteLength<12)return;
+  pc++;
+  const ax=d.getInt16(0,true)/1000,ay=d.getInt16(2,true)/1000,az=d.getInt16(4,true)/1000;
+  const gx=d.getInt16(6,true)/10,gy=d.getInt16(8,true)/10,gz=d.getInt16(10,true)/10;
+
+  $('ax').textContent=ax.toFixed(2);$('ay').textContent=ay.toFixed(2);$('az').textContent=az.toFixed(2);
+  $('gx').textContent=gx.toFixed(1);$('gy').textContent=gy.toFixed(1);$('gz').textContent=gz.toFixed(1);
+
+  aH.push([ax,ay,az]);if(aH.length>N)aH.shift();
+  gH.push([gx,gy,gz]);if(gH.length>N)gH.shift();
+
+  if(rec){csv.push(`${performance.now().toFixed(1)},${ax},${ay},${az},${gx},${gy},${gz}`);rCnt++}
+}
+
+// Render
+const cA=$('cA').getContext('2d'),cG=$('cG').getContext('2d');
+const cAc=$('cA'),cGc=$('cG');
+
+function render(){
+  requestAnimationFrame(render);
+  const now=performance.now();
+  if(now-lt>=1000){
+    const h=pc;$('hzPill').textContent=h+' Hz';pc=0;lt=now;
+    if(rec)$('rHz').textContent=h;
+  }
+  if(rec){
+    const el=Math.floor((now-recStart)/1000);
+    $('rTime').textContent=String(Math.floor(el/60)).padStart(2,'0')+':'+String(el%60).padStart(2,'0');
+    $('rCnt').textContent=rCnt;
+  }
+  if(curTab==='acc') draw(cA,cAc,aH,2,['#38bdf8','#34d399','#fb7185']);
+  else draw(cG,cGc,gH,250,['#fb923c','#a78bfa','#fbbf24']);
+}
+
+function draw(ctx,cv,h,s,c){
+  const w=cv.width,hh=cv.height;ctx.clearRect(0,0,w,hh);
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;ctx.beginPath();
+  ctx.moveTo(0,hh/2);ctx.lineTo(w,hh/2);ctx.stroke();
+  if(h.length<2)return;
+  const mid=hh/2,sc=mid/s;
+  for(let a=0;a<3;a++){
+    ctx.beginPath();ctx.strokeStyle=c[a];ctx.lineWidth=2;ctx.lineJoin='round';
+    h.forEach((p,i)=>{
+      const x=i/(N-1)*w,y=Math.max(1,Math.min(hh-1,mid-p[a]*sc));
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });ctx.stroke();
+  }
+}
+
+// Record Controls
+function startRec(){
+  rec=true;csv=[];rCnt=0;recStart=performance.now();
+  $('recCard').classList.add('active');$('rdot').classList.add('on');
+  $('recStatus').textContent='Đang ghi...';
+  $('bStart').disabled=true;$('bStop').disabled=false;$('bDl').disabled=true;
+  $('rCnt').textContent='0';$('rTime').textContent='00:00';$('rHz').textContent='0';
+}
+function stopRec(){
+  rec=false;
+  $('recCard').classList.remove('active');$('rdot').classList.remove('on');
+  $('recStatus').textContent=`Đã thu ${rCnt} mẫu`;
+  $('bStart').disabled=false;$('bStart').textContent='▶ Ghi tiếp';
+  $('bStop').disabled=true;
+  if(csv.length)$('bDl').disabled=false;
+}
+function dlCSV(){
+  if(!csv.length)return;
+  const blob=new Blob(['timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n'+csv.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='imu_'+new Date().toISOString().slice(0,19).replace(/:/g,'')+'.csv';a.click();
+}
+function clearRec(){
+  rec=false;csv=[];rCnt=0;
+  $('recCard').classList.remove('active');$('rdot').classList.remove('on');
+  $('recStatus').textContent='Sẵn sàng';
+  $('bStart').disabled=false;$('bStart').textContent='▶ Bắt đầu ghi';
+  $('bStop').disabled=true;$('bDl').disabled=true;
+  $('rCnt').textContent='0';$('rTime').textContent='00:00';$('rHz').textContent='0';
+}
+
+render();
+</script>
+</body>
+</html>
