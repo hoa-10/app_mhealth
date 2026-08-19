@@ -154,6 +154,23 @@
   .m-title{font-size:14px;font-weight:800}
   .m-sub{font-size:11px;opacity:.8;margin-top:2px}
   #csvPreviewArea{width:100%;height:85px;background:rgba(0,0,0,.45);color:#94a3b8;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px;font-family:monospace;font-size:10px;resize:none;line-height:1.4}
+
+  /* Activity Selector */
+  .act-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:16px}
+  .act-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .act-title{font-size:13px;font-weight:700;color:#cbd5e1}
+  .act-selected{font-family:monospace;font-size:12px;font-weight:700;padding:3px 10px;border-radius:12px;background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3)}
+  .act-group-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:8px 0 6px}
+  .act-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .act-grid.warn-grid{grid-template-columns:repeat(3,1fr)}
+  .act-btn{
+    padding:8px 4px;border-radius:10px;border:1px solid var(--border);
+    background:rgba(255,255,255,.03);color:var(--sub);font-size:12px;font-weight:600;
+    cursor:pointer;text-align:center;transition:.15s;
+  }
+  .act-btn:active{transform:scale(.95)}
+  .act-btn.active{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-color:transparent;box-shadow:0 2px 10px rgba(37,99,235,.35);font-weight:700}
+  .act-btn.warn.active{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border-color:transparent;box-shadow:0 2px 10px rgba(239,68,68,.35);font-weight:700}
 </style>
 
 </head>
@@ -171,6 +188,35 @@
   <div class="connect-name" id="bleName">Chưa kết nối thiết bị</div>
   <div class="connect-sub" id="bleSub">Bấm nút để quét và kết nối Arduino Nano 33 BLE</div>
   <button class="btn-connect blue" id="cBtn" onclick="go()">Kết nối Bluetooth</button>
+</div>
+
+<!-- Activity Label Selector -->
+<div class="act-card">
+  <div class="act-header">
+    <div class="act-title">Nhãn hoạt động</div>
+    <div class="act-selected" id="actSelectedDisplay">Đi bộ</div>
+  </div>
+  
+  <div class="act-group-lbl">Hoạt động bình thường</div>
+  <div class="act-grid">
+    <button class="act-btn active" onclick="selectActivity('Đi bộ', 'walking', this)">Đi bộ</button>
+    <button class="act-btn" onclick="selectActivity('Chạy bộ', 'running', this)">Chạy bộ</button>
+    <button class="act-btn" onclick="selectActivity('Đứng yên', 'standing', this)">Đứng yên</button>
+    <button class="act-btn" onclick="selectActivity('Ngồi', 'sitting', this)">Ngồi</button>
+    <button class="act-btn" onclick="selectActivity('Nằm', 'lying', this)">Nằm</button>
+    <button class="act-btn" onclick="selectActivity('Cầu thang', 'stairs', this)">Cầu thang</button>
+    <button class="act-btn" onclick="selectActivity('Nhảy', 'jumping', this)">Nhảy</button>
+    <button class="act-btn" onclick="selectActivity('Cúi người', 'waist_bending', this)">Cúi người</button>
+  </div>
+
+  <div class="act-group-lbl" style="margin-top:10px">Sự cố / Bất thường</div>
+  <div class="act-grid warn-grid">
+    <button class="act-btn warn" onclick="selectActivity('Ngã', 'fall', this)">Ngã</button>
+    <button class="act-btn warn" onclick="selectActivity('Vấp ngã', 'near_fall', this)">Vấp ngã</button>
+    <button class="act-btn warn" onclick="selectActivity('Va đập', 'impact', this)">Va đập</button>
+    <button class="act-btn warn" onclick="selectActivity('Lỏng cảm biến', 'loose_sensor', this)">Lỏng cảm biến</button>
+    <button class="act-btn warn" onclick="selectActivity('Khó thở', 'dyspnea', this)">Khó thở</button>
+  </div>
 </div>
 
 <!-- Tabs -->
@@ -280,6 +326,15 @@ const N=120;
 let dev=null,aH=[],gH=[],pc=0,lt=performance.now();
 let rec=false,csv=[],recStart=0,rCnt=0;
 let curTab='acc';
+let curActivityName='Đi bộ', curActivityKey='walking';
+
+function selectActivity(name, key, btn){
+  curActivityName = name;
+  curActivityKey = key;
+  $('actSelectedDisplay').textContent = name;
+  document.querySelectorAll('.act-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
 
 // Tab switching
 function setTab(t){
@@ -388,7 +443,7 @@ function onData(e){
   aH.push([ax,ay,az]);if(aH.length>N)aH.shift();
   gH.push([gx,gy,gz]);if(gH.length>N)gH.shift();
 
-  if(rec){csv.push(`${performance.now().toFixed(1)},${ax},${ay},${az},${gx},${gy},${gz}`);rCnt++}
+  if(rec){csv.push(`${performance.now().toFixed(1)},${ax},${ay},${az},${gx},${gy},${gz},${curActivityKey}`);rCnt++}
 }
 
 // Render
@@ -463,8 +518,8 @@ function openExportModal(){
     alert("Chưa có dữ liệu để xuất!");
     return;
   }
-  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
-  $('modalSamples').textContent = csv.length;
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
+  $('modalSamples').textContent = `${csv.length} [${curActivityName}]`;
   $('csvPreviewArea').value = csvContent;
   $('exportModal').style.display = 'flex';
 }
@@ -475,15 +530,15 @@ function closeExportModal(){
 
 async function actionShare(){
   if (!csv.length) return;
-  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
-  const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
+  const filename = `${curActivityKey}_${new Date().toISOString().slice(0,19).replace(/[-:]/g,'_')}.csv`;
 
   try {
     const file = new File([csvContent], filename, { type: 'text/csv' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
-        title: 'IMU Data',
-        text: `Dữ liệu cảm biến IMU (${csv.length} mẫu)`,
+        title: `IMU ${curActivityName}`,
+        text: `Dữ liệu hoạt động ${curActivityName} (${csv.length} mẫu)`,
         files: [file]
       });
       return;
@@ -496,7 +551,7 @@ async function actionShare(){
   if (navigator.share) {
     try {
       await navigator.share({
-        title: 'Dữ liệu IMU Tracker',
+        title: `Dữ liệu IMU ${curActivityName}`,
         text: csvContent
       });
       return;
@@ -509,13 +564,13 @@ async function actionShare(){
 
 function actionCopy(){
   if (!csv.length) return;
-  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
   
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(csvContent).then(() => {
       $('copyBtnTitle').textContent = '✅ Đã Copy thành công!';
       setTimeout(() => { $('copyBtnTitle').textContent = 'Sao chép toàn bộ CSV'; }, 2500);
-      alert(`✅ Đã copy ${csv.length} dòng dữ liệu! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
+      alert(`✅ Đã copy ${csv.length} dòng dữ liệu [${curActivityName}]! Bạn có thể dán (Paste) vào Zalo, Ghi chú, Email hoặc Google Sheets.`);
     }).catch(() => fallbackManualCopy(csvContent));
   } else {
     fallbackManualCopy(csvContent);
@@ -528,7 +583,7 @@ function fallbackManualCopy(text){
   ta.select();
   try {
     document.execCommand('copy');
-    alert(`✅ Đã copy ${csv.length} dòng dữ liệu!`);
+    alert(`✅ Đã copy ${csv.length} dòng dữ liệu [${curActivityName}]!`);
   } catch (e) {
     alert("Vui lòng bôi đen dữ liệu trong khung bên dưới và bấm Sao chép.");
   }
@@ -536,8 +591,8 @@ function fallbackManualCopy(text){
 
 function actionDirectDownload(){
   if (!csv.length) return;
-  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps\n' + csv.join('\n');
-  const filename = 'imu_' + new Date().toISOString().slice(0,19).replace(/[-:]/g,'_') + '.csv';
+  const csvContent = 'timestamp_ms,accX_g,accY_g,accZ_g,gyrX_dps,gyrY_dps,gyrZ_dps,activity\n' + csv.join('\n');
+  const filename = `${curActivityKey}_${new Date().toISOString().slice(0,19).replace(/[-:]/g,'_')}.csv`;
 
   try {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
